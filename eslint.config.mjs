@@ -16,5 +16,14 @@ export default defineConfig([
       }]
     }
   },
-  globalIgnores([".next/**", ".pnpm-store/**", ".pnpm-cache/**", "out/**", "coverage/**", "server/generated/**", "next-env.d.ts"])
+  {
+    files: ["app/admin/**/page.tsx", "app/admin/**/layout.tsx", "app/api/admin/**/route.ts"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        patterns: [{ regex: "^(?:@/server(?:$|/(?!auth/(?:pages|http)$))|(?:\\.\\./)+server(?:/|$)|@prisma/)",
+          message: "Server routes may use only the auth entry points, never database/internal modules." }]
+      }]
+    }
+  },
+  globalIgnores([".next/**", ".next-auth/**", ".next-auth-*/**", ".pnpm-store/**", ".pnpm-cache/**", "out/**", "coverage/**", "server/generated/**", "next-env.d.ts"])
 ]);

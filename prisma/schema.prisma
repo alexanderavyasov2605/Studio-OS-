@@ -13,6 +13,7 @@ enum Role {
   DESIGNER
   PRODUCTION
   ADMIN
+  OPERATOR
   OWNER
 }
 
@@ -177,6 +178,8 @@ model User {
   productionJobs   ProductionJob[]
   statusHistory    StatusHistory[]
   auditLogs        AuditLog[]
+  adminCredential  AdminCredential?
+  adminSessions    AdminSession[]
 
   @@index([isActive])
 }
@@ -718,4 +721,35 @@ model AuditLog {
   @@index([entityType, entityId, createdAt(sort: Desc)])
   @@index([actorId, createdAt(sort: Desc)])
   @@index([createdAt])
+}
+
+model AdminCredential {
+  userId            String   @id @db.Uuid
+  passwordHash      String   @db.VarChar(255)
+  version           Int      @default(1)
+  passwordChangedAt DateTime @default(now()) @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AdminSession {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId            String    @db.Uuid
+  tokenHash         String    @unique @db.Char(64)
+  credentialVersion Int
+  expiresAt         DateTime  @db.Timestamptz(3)
+  revokedAt         DateTime? @db.Timestamptz(3)
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
+}
+
+model LoginThrottle {
+  key         String   @id @db.VarChar(100)
+  windowStart DateTime @db.Timestamptz(3)
+  attempts    Int
+
+  @@index([windowStart])
 }
