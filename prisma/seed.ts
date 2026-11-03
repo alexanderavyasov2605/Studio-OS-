@@ -36,7 +36,7 @@ try {
       });
     }
     await seedCatalog(tx);
-  });
+  }, { timeout: 30_000 });
   console.log("Seed complete: formats, demo references and five catalog products. Existing rows unchanged.");
 } finally {
   await prisma.$disconnect();

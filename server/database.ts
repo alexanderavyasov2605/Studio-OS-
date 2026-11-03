@@ -7,7 +7,7 @@ export function database(): PrismaClient {
     const connectionString = process.env.DATABASE_URL;
     if (!connectionString) throw new Error("Database configuration is required");
     globalDatabase.studioDatabase = new PrismaClient({
-      adapter: new PrismaPg({ connectionString, max: 5 }),
+      adapter: new PrismaPg({ connectionString, max: 5, connectionTimeoutMillis: 5000, query_timeout: 5000 }),
     });
   }
   return globalDatabase.studioDatabase;

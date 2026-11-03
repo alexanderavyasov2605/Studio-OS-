@@ -35,6 +35,11 @@ assert.equal((await fetch(new URL("/api/admin/session", baseUrl))).status, 401);
 console.log("PASS guest admin redirect, public staff login and protected service API");
 
 const uiKit = await fetch(new URL("/ui-kit", baseUrl));
+const health = await fetch(new URL("/api/health", baseUrl));
+assert.equal(health.status, 200, "Migrated database is ready");
+assert.deepEqual(await health.json(), { status: "ok" });
+assert.equal(health.headers.get("cache-control"), "no-store");
+console.log("PASS readiness: catalog/session tables accessible, no details exposed");
 const isDev = baseUrl.endsWith(":3100");
 assert.equal(uiKit.status, isDev ? 200 : 404, "UI kit is development-only");
 const kitHtml = await uiKit.text();

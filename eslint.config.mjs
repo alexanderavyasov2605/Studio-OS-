@@ -29,5 +29,9 @@ export default defineConfig([
     files: ["app/(public)/catalog/(listing)/page.tsx", "app/(public)/catalog/[[]slug[]]/page.tsx"],
     rules: { "no-restricted-imports": ["error", { patterns: [{ regex: "^(?:@/server(?:$|/(?!catalog$))|(?:\\.\\./)+server(?:/|$)|@prisma/)", message: "Public catalog pages may use only the marked catalog entry point." }] }] }
   },
+  {
+    files: ["app/api/health/route.ts"],
+    rules: { "no-restricted-imports": ["error", { patterns: [{ regex: "^(?:@/server(?:$|/(?!health$))|(?:\\.\\./)+server(?:/|$)|@prisma/)", message: "Health route may import only the marked readiness entry point." }] }] }
+  },
   globalIgnores([".next/**", ".next-auth/**", ".next-auth-*/**", ".pnpm-store/**", ".pnpm-cache/**", "out/**", "coverage/**", "server/generated/**", "next-env.d.ts"])
 ]);
