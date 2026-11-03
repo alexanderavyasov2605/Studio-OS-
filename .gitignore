@@ -1,0 +1,10 @@
+node_modules/
+.pnpm-store/
+.pnpm-cache/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.env*
+!.env.example
+server/generated/

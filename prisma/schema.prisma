@@ -1,0 +1,10 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../server/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Domain models and migrations are intentionally deferred to a later stage.
