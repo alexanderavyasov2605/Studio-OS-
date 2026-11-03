@@ -1,4 +1,5 @@
 import "server-only";
+import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticationOrigin, sessionCookieName, sessionCookieOptions } from "./config";
 import { checkOrigin, privateJson } from "./http";
@@ -12,6 +13,19 @@ function redirect(path: string, status = 303) {
   response.headers.set("Referrer-Policy", "no-referrer");
   response.headers.set("X-Robots-Tag", "noindex, nofollow");
   return response;
+}
+function completeLogin(destination: string) {
+  const path = destination === "/admin" ? "/admin" : "/account";
+  const nonce = randomBytes(18).toString("base64url");
+  // Finish the external redirect chain with a same-origin document before navigating.
+  // This lets the browser send the existing Strict session cookie on the next request.
+  return new NextResponse(`<!doctype html><html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Вход подтверждён · Studio OS</title></head><body><main><h1>Вход подтверждён</h1><p>Открываем Studio OS…</p><a href="${path}">Продолжить</a></main><script nonce="${nonce}">window.location.replace(${JSON.stringify(path)})</script></body></html>`, {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8", "Cache-Control": "private, no-store",
+      "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow", "X-Content-Type-Options": "nosniff",
+      "Content-Security-Policy": `default-src 'none'; script-src 'nonce-${nonce}'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'`,
+    },
+  });
 }
 export async function handleTelegramRequest(request: NextRequest, segments: string[]) {
   const path = segments.join("/");
@@ -29,7 +43,7 @@ export async function handleTelegramRequest(request: NextRequest, segments: stri
       const session = await finishTelegramLogin(query.get("state")!, request.cookies.get(telegramCookieName())?.value ?? "", query.get("code")!);
       // Rotate any old local session; Telegram tokens never reach the browser or database.
       await logout(request.cookies.get(sessionCookieName())?.value);
-      const response = redirect(session.destination);
+      const response = completeLogin(session.destination);
       response.cookies.set(sessionCookieName(), session.token, { ...sessionCookieOptions(), expires: session.expiresAt });
       response.cookies.set(telegramCookieName(), "", { ...sessionCookieOptions(), sameSite: "lax", maxAge: 0 });
       return response;
