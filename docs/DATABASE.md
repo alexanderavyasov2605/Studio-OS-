@@ -1,5 +1,7 @@
 # База данных MVP
 
+Этап 5 добавляет Product.calculationMode/features/sortOrder/revision, ProductImage (Product 1:N) и ProductMaterial (Product N:M Material). Витринный материал не заменяет ProductCompatibility с производственным профилем. Миграция 20261103090000_catalog содержит индексы, ограничения и RLS; подробности и seed: [CATALOG](CATALOG.md).
+
 Источник: [ТЗ v1.0](STUDIO_OS_MVP_TZ.md), предоставленное пользователем 2026-11-03. PostgreSQL / Prisma 7.10.1; Supabase остаётся единственной рабочей БД. Этот этап не создаёт API, авторизацию, калькулятор или интерфейсы.
 
 На этапе 4 добавлены AdminCredential, AdminSession и LoginThrottle (всего 27 таблиц) с отдельной миграцией и RLS; роль OPERATOR. Политика доступа, хеширование и bootstrap описаны в [AUTH](AUTH.md). Seed не создаёт учётных данных.

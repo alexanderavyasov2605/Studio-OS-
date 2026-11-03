@@ -1,10 +1,9 @@
 import { spawn, spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 const mode = process.argv.includes("--dev") ? "dev" : "start";
 const port = mode === "dev" ? "3100" : "3101";
 const server = spawn(process.execPath, [
-  fileURLToPath(import.meta.resolve("next/dist/bin/next")),
+  "scripts/next.mjs",
   mode, ...(mode === "dev" ? ["--webpack"] : []), "--hostname", "127.0.0.1", "--port", port,
 ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 let output = "";

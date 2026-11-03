@@ -18,7 +18,7 @@ for (const [path, heading] of routes) {
   const html = await response.text();
   assert.match(html, /<html lang="ru"/, path);
   assert.ok(html.includes(heading), path);
-  assert.ok(html.includes("Страница-заглушка"), path);
+  if (path !== "/catalog") assert.ok(html.includes("Страница-заглушка"), path);
   assert.equal(html.includes('aria-label="Основная навигация"'), path !== "/admin" && path !== "/mini", path);
   assert.equal(html.includes('aria-label="Административная навигация"'), path === "/admin", path);
   assert.equal(html.includes('aria-label="Навигация Mini App"'), path === "/mini", path);

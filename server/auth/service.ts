@@ -5,7 +5,7 @@ import { verifyPassword } from "./password";
 import { SESSION_SECONDS } from "./config";
 
 export type Actor = { id: string; email: string; displayName: string | null; role: "ADMIN" | "OPERATOR"; permissions: string[] };
-export type Permission = "tariffs:write";
+export type Permission = "tariffs:write" | "catalog:write";
 type Store = PrismaClient | Prisma.TransactionClient;
 export class AuthError extends Error {
   constructor(public readonly status: number, public readonly code: string, message: string) { super(message); }
@@ -96,6 +96,21 @@ export async function requireActor(token: string | undefined, store?: Store): Pr
   const actor = await actorForSession(token, store);
   if (!actor) throw new AuthError(401, "UNAUTHENTICATED", "Требуется вход.");
   return actor;
+}
+export async function withPermission<T>(token: string | undefined, permission: Permission, work: (tx: Prisma.TransactionClient, actor: Actor) => Promise<T>): Promise<T> {
+  const actor = await requireActor(token);
+  if (!allowed(actor, permission)) {
+    await audit("auth.permission_denied", actor.id, { permission });
+    throw new AuthError(403, "FORBIDDEN", "Недостаточно прав.");
+  }
+  return database().$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM "AdminSession" WHERE "tokenHash" = ${digestToken(token!)} FOR SHARE`;
+    await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${actor.id}::uuid FOR SHARE`;
+    await tx.$queryRaw`SELECT "userId" FROM "AdminCredential" WHERE "userId" = ${actor.id}::uuid FOR SHARE`;
+    const current = await requireActor(token, tx);
+    if (!allowed(current, permission)) throw new AuthError(403, "FORBIDDEN", "Недостаточно прав.");
+    return work(tx, current);
+  });
 }
 export async function logout(token: string | undefined) {
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return;

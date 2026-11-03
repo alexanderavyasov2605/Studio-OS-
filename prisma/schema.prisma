@@ -36,6 +36,11 @@ enum ProductKind {
   CUSTOM
 }
 
+enum CalculationMode {
+  AUTO_SHEET
+  MANUAL_REQUEST
+}
+
 enum PrintSides {
   SINGLE
   DOUBLE
@@ -239,6 +244,12 @@ model Product {
   slug                    String                 @unique @db.VarChar(100)
   name                    String                 @db.VarChar(200)
   description             String?
+  features                String[]               @default([])
+  calculationMode         CalculationMode        @default(MANUAL_REQUEST)
+  sortOrder               Int                    @default(0)
+  revision                Int                    @default(1)
+  images                  ProductImage[]
+  materials               ProductMaterial[]
   kind                    ProductKind            @default(SHEET)
   isActive                Boolean                @default(false)
   configurationSchema     Json                   @default("{}")
@@ -252,6 +263,29 @@ model Product {
   orderItems              OrderItem[]
 
   @@index([categoryId, isActive])
+  @@index([isActive, sortOrder, id])
+}
+
+model ProductImage {
+  id        String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId String  @db.Uuid
+  url       String  @db.VarChar(2048)
+  alt       String  @db.VarChar(200)
+  sortOrder Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, sortOrder])
+}
+
+// Merchandising selection; does not establish production/tariff compatibility.
+model ProductMaterial {
+  productId  String   @db.Uuid
+  materialId String   @db.Uuid
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  material   Material @relation(fields: [materialId], references: [id], onDelete: Restrict)
+
+  @@id([productId, materialId])
+  @@index([materialId])
 }
 
 model Material {
@@ -266,6 +300,7 @@ model Material {
   createdAt     DateTime               @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
   compatibility ProductCompatibility[]
+  catalogProducts ProductMaterial[]
   sheetTariffs  SheetTariff[]
   quoteItems    QuoteItem[]
   orderItems    OrderItem[]

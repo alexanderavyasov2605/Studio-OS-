@@ -18,6 +18,9 @@ describe("architecture boundaries", () => {
           [resolve("app/admin/login/page.tsx"), "@/server/auth/pages"],
           [resolve("app/admin/(protected)/layout.tsx"), "@/server/auth/pages"],
           [resolve("app/admin/(protected)/page.tsx"), "@/server/auth/pages"],
+          [resolve("app/admin/(protected)/catalog/page.tsx"), "@/server/catalog/admin"],
+          [resolve("app/(public)/catalog/(listing)/page.tsx"), "@/server/catalog"],
+          [resolve("app/(public)/catalog/[slug]/page.tsx"), "@/server/catalog"],
           [resolve("app/api/admin/[...segments]/route.ts"), "@/server/auth/http"],
         ]);
         const entry = adapters.get(file);
