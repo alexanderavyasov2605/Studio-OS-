@@ -2,7 +2,9 @@
 
 Статус: проектное предложение от 2026-11-03; на этапе 1 реализованы только маршруты и layout. [Решения](DECISIONS.md), [источник требований и вопросы](PROGRESS.md).
 
-Техническая основа: Next.js App Router, TypeScript strict, Tailwind CSS, pnpm; Prisma/PostgreSQL без моделей. app/(public) и app/admin разделяют layout. components содержит представление, lib — browser-safe данные, server — единую будущую серверную логику с server-only. Страницы не обращаются к БД. Клиентский компонент только подсвечивает навигацию.
+Техническая основа: Next.js App Router, TypeScript strict, Tailwind CSS, pnpm; Prisma/PostgreSQL без моделей. app/(public), app/mini и app/admin разделяют layout. components содержит представление, lib — browser-safe данные, server — единую будущую серверную логику с server-only. Страницы не обращаются к БД. Клиентские компоненты управляют только представлением: навигацией, полями, вкладками и диалогами.
+
+Этап 2 добавляет общую [дизайн-систему](DESIGN_SYSTEM.md) и dev-витрину /ui-kit. Описанные ниже серверные границы и владельцы данных остаются прежними.
 
 ## Границы и данные
 | Компонент | Ответственность |
