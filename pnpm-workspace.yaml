@@ -34,7 +34,7 @@ minimumReleaseAgeExclude:
   - tailwindcss@4.3.4
   - vitest@5.1.0
 allowBuilds:
-  '@prisma/engines': false
+  '@prisma/engines': true
   prisma: false
   sharp: true
   esbuild: true

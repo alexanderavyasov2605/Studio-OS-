@@ -7,4 +7,715 @@ datasource db {
   provider = "postgresql"
 }
 
-// Domain models and migrations are intentionally deferred to a later stage.
+enum Role {
+  CLIENT
+  MANAGER
+  DESIGNER
+  PRODUCTION
+  ADMIN
+  OWNER
+}
+
+enum CustomerSource {
+  WEBSITE
+  TELEGRAM
+  MANUAL
+  OTHER
+}
+
+enum MaterialAvailability {
+  AVAILABLE
+  ON_REQUEST
+  UNAVAILABLE
+  ARCHIVED
+}
+
+enum ProductKind {
+  SHEET
+  CUSTOM
+}
+
+enum PrintSides {
+  SINGLE
+  DOUBLE
+}
+
+enum PriceListStatus {
+  DRAFT
+  PUBLISHED
+  RETIRED
+}
+
+enum OperationUnit {
+  PER_ORDER
+  PER_SHEET
+  PER_UNIT
+}
+
+enum QuoteStatus {
+  DRAFT
+  READY
+  MANUAL_REVIEW
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+enum PriceStatus {
+  FIRM
+  MANUAL_REVIEW
+}
+
+enum QuantityMode {
+  UNITS
+  SHEETS
+}
+
+enum ArtworkService {
+  PROVIDED
+  ADAPTATION
+  DESIGN
+}
+
+enum OrderStatus {
+  DRAFT
+  SUBMITTED
+  NEEDS_REVIEW
+  QUOTED
+  AWAITING_PAYMENT
+  CONFIRMED
+  IN_PRODUCTION
+  READY
+  COMPLETED
+  NEEDS_ARTWORK
+  AWAITING_ARTWORK_APPROVAL
+  CANCELLED
+}
+
+enum OrderPaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  REFUNDED
+}
+
+enum ArtworkStatus {
+  MISSING
+  UNDER_REVIEW
+  REVISION_REQUESTED
+  APPROVED
+}
+
+enum FileCheckStatus {
+  PENDING
+  VALID
+  INVALID
+  MANUAL_REVIEW
+}
+
+enum PaymentKind {
+  PAYMENT
+  REFUND
+}
+
+enum PaymentRecordStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  PROVIDER
+  OTHER
+}
+
+enum ProductionStage {
+  QUEUED
+  PREPARATION
+  PRINT
+  FINISHING
+  QUALITY_CHECK
+  READY
+}
+
+enum ProductionJobStatus {
+  PENDING
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum StatusEntity {
+  ORDER
+  ORDER_ITEM
+  ARTWORK
+  PAYMENT
+  PRODUCTION_JOB
+}
+
+model User {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email            String?           @unique @db.VarChar(254)
+  displayName      String?           @db.VarChar(200)
+  locale           String            @default("ru") @db.VarChar(10)
+  roles            Role[]            @default([CLIENT])
+  permissions      String[]          @default([])
+  externalAuthId   String?           @unique @db.Uuid
+  isActive         Boolean           @default(true)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+  telegramIdentity TelegramIdentity?
+  customer         Customer?
+  quotes           Quote[]           @relation("QuoteAuthor")
+  assignedOrders   Order[]           @relation("OrderManager")
+  uploadedVersions ArtworkVersion[]  @relation("VersionUploader")
+  approvedVersions ArtworkVersion[]  @relation("VersionApprover")
+  verifiedPayments Payment[]         @relation("PaymentVerifier")
+  productionJobs   ProductionJob[]
+  statusHistory    StatusHistory[]
+  auditLogs        AuditLog[]
+
+  @@index([isActive])
+}
+
+model TelegramIdentity {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @unique @db.Uuid
+  telegramUserId BigInt   @unique
+  username       String?  @db.VarChar(64)
+  linkedAt       DateTime @default(now()) @db.Timestamptz(3)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Customer {
+  id          String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId      String?        @unique @db.Uuid
+  name        String         @db.VarChar(200)
+  companyName String?        @db.VarChar(200)
+  email       String?        @db.VarChar(254)
+  phone       String?        @db.VarChar(32)
+  source      CustomerSource @default(MANUAL)
+  notes       String?
+  archivedAt  DateTime?      @db.Timestamptz(3)
+  createdAt   DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime       @default(now()) @updatedAt @db.Timestamptz(3)
+  user        User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orders      Order[]
+  quotes      Quote[]
+  artworks    Artwork[]
+
+  @@index([email])
+  @@index([phone])
+  @@index([source, createdAt(sort: Desc)])
+  @@index([archivedAt, name])
+}
+
+model Category {
+  id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug      String     @unique @db.VarChar(100)
+  name      String     @db.VarChar(200)
+  parentId  String?    @db.Uuid
+  isActive  Boolean    @default(false)
+  sortOrder Int        @default(0)
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime   @default(now()) @updatedAt @db.Timestamptz(3)
+  parent    Category?  @relation("CategoryTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("CategoryTree")
+  products  Product[]
+
+  @@index([parentId, sortOrder])
+  @@index([isActive, sortOrder])
+}
+
+model Product {
+  id                      String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId              String?                @db.Uuid
+  slug                    String                 @unique @db.VarChar(100)
+  name                    String                 @db.VarChar(200)
+  description             String?
+  kind                    ProductKind            @default(SHEET)
+  isActive                Boolean                @default(false)
+  configurationSchema     Json                   @default("{}")
+  artworkApprovalRequired Boolean                @default(true)
+  leadTimeDays            Int?
+  createdAt               DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
+  category                Category?              @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  compatibility           ProductCompatibility[]
+  quoteItems              QuoteItem[]
+  orderItems              OrderItem[]
+
+  @@index([categoryId, isActive])
+}
+
+model Material {
+  id            String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code          String                 @unique @db.VarChar(100)
+  name          String                 @db.VarChar(200)
+  description   String?
+  densityGsm    Decimal?               @db.Decimal(10, 3)
+  thicknessMm   Decimal?               @db.Decimal(10, 3)
+  properties    Json                   @default("{}")
+  availability  MaterialAvailability   @default(UNAVAILABLE)
+  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
+  compatibility ProductCompatibility[]
+  sheetTariffs  SheetTariff[]
+  quoteItems    QuoteItem[]
+  orderItems    OrderItem[]
+
+  @@index([availability, name])
+}
+
+model SheetFormat {
+  id                 String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code               String              @unique @db.VarChar(64)
+  name               String              @db.VarChar(100)
+  widthMm            Decimal             @db.Decimal(10, 3)
+  heightMm           Decimal             @db.Decimal(10, 3)
+  isCustom           Boolean             @default(true)
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
+  productionProfiles ProductionProfile[]
+  quoteItems         QuoteItem[]
+  orderItems         OrderItem[]
+
+  @@index([widthMm, heightMm])
+}
+
+model ProductionProfile {
+  id             String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code           String                 @unique @db.VarChar(100)
+  name           String                 @db.VarChar(200)
+  sheetFormatId  String                 @db.Uuid
+  workWidthMm    Decimal                @db.Decimal(10, 3)
+  workHeightMm   Decimal                @db.Decimal(10, 3)
+  marginTopMm    Decimal                @default(0) @db.Decimal(10, 3)
+  marginBottomMm Decimal                @default(0) @db.Decimal(10, 3)
+  marginLeftMm   Decimal                @default(0) @db.Decimal(10, 3)
+  marginRightMm  Decimal                @default(0) @db.Decimal(10, 3)
+  gapXMm         Decimal                @default(0) @db.Decimal(10, 3)
+  gapYMm         Decimal                @default(0) @db.Decimal(10, 3)
+  bleedMm        Decimal                @default(0) @db.Decimal(10, 3)
+  allowRotation  Boolean                @default(false)
+  setupSheets    Int                    @default(0)
+  wastePercent   Decimal                @default(0) @db.Decimal(5, 2)
+  constraints    Json                   @default("{}")
+  isActive       Boolean                @default(false)
+  createdAt      DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime               @default(now()) @updatedAt @db.Timestamptz(3)
+  sheetFormat    SheetFormat            @relation(fields: [sheetFormatId], references: [id], onDelete: Restrict)
+  compatibility  ProductCompatibility[]
+  sheetTariffs   SheetTariff[]
+  quoteItems     QuoteItem[]
+  orderItems     OrderItem[]
+  productionJobs ProductionJob[]
+
+  @@index([sheetFormatId, isActive])
+}
+
+model ProductCompatibility {
+  id                   String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  productId            String            @db.Uuid
+  materialId           String            @db.Uuid
+  productionProfileId  String            @db.Uuid
+  allowedSides         PrintSides[]      @default([SINGLE])
+  operationCodes       String[]          @default([])
+  requiresManualReview Boolean           @default(true)
+  isActive             Boolean           @default(false)
+  product              Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  material             Material          @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  productionProfile    ProductionProfile @relation(fields: [productionProfileId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, materialId, productionProfileId])
+  @@index([materialId])
+  @@index([productionProfileId])
+}
+
+model PriceListVersion {
+  id                String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  series            String            @default("standard") @db.VarChar(64)
+  version           Int
+  name              String            @db.VarChar(200)
+  currency          String            @default("UZS") @db.Char(3)
+  status            PriceListStatus   @default(DRAFT)
+  validFrom         DateTime          @db.Timestamptz(3)
+  validUntil        DateTime?         @db.Timestamptz(3)
+  publishedAt       DateTime?         @db.Timestamptz(3)
+  minimumOrderPrice Decimal           @default(0) @db.Decimal(18, 2)
+  roundingIncrement Decimal           @default(1) @db.Decimal(10, 2)
+  reservePolicy     Json              @default("{\"billable\":\"sellable_sheets\",\"reserveIncluded\":true}")
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+  sheetTariffs      SheetTariff[]
+  operationTariffs  OperationTariff[]
+  quotes            Quote[]
+  orders            Order[]
+
+  @@unique([series, version])
+  @@unique([id, currency])
+  @@index([status, validFrom])
+}
+
+model SheetTariff {
+  id                  String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  priceListVersionId  String                         @db.Uuid
+  materialId          String                         @db.Uuid
+  productionProfileId String                         @db.Uuid
+  sides               PrintSides                     @default(SINGLE)
+  pricePerSheet       Decimal                        @db.Decimal(18, 4)
+  includesMaterial    Boolean                        @default(true)
+  includesPrinting    Boolean                        @default(true)
+  minimumItemPrice    Decimal                        @default(0) @db.Decimal(18, 2)
+  isActive            Boolean                        @default(false)
+  createdAt           DateTime                       @default(now()) @db.Timestamptz(3)
+  priceListVersion    PriceListVersion               @relation(fields: [priceListVersionId], references: [id], onDelete: Cascade)
+  material            Material                       @relation(fields: [materialId], references: [id], onDelete: Restrict)
+  productionProfile   ProductionProfile              @relation(fields: [productionProfileId], references: [id], onDelete: Restrict)
+  tiers               PricingTier[]
+  includedOperations  SheetTariffIncludedOperation[]
+
+  @@unique([priceListVersionId, materialId, productionProfileId, sides])
+  @@unique([id, priceListVersionId])
+  @@index([materialId, productionProfileId, isActive])
+  @@index([productionProfileId])
+}
+
+model PricingTier {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sheetTariffId String      @db.Uuid
+  fromSheets    Int
+  toSheets      Int?
+  pricePerSheet Decimal     @db.Decimal(18, 4)
+  sheetTariff   SheetTariff @relation(fields: [sheetTariffId], references: [id], onDelete: Cascade)
+
+  @@unique([sheetTariffId, fromSheets])
+}
+
+model OperationTariff {
+  id                 String                         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  priceListVersionId String                         @db.Uuid
+  code               String                         @db.VarChar(100)
+  name               String                         @db.VarChar(200)
+  unit               OperationUnit
+  price              Decimal                        @db.Decimal(18, 4)
+  requiresApproval   Boolean                        @default(true)
+  compatibility      Json                           @default("{}")
+  isActive           Boolean                        @default(false)
+  priceListVersion   PriceListVersion               @relation(fields: [priceListVersionId], references: [id], onDelete: Cascade)
+  includedInSheets   SheetTariffIncludedOperation[]
+
+  @@unique([priceListVersionId, code])
+  @@unique([id, priceListVersionId])
+}
+
+model SheetTariffIncludedOperation {
+  sheetTariffId      String          @db.Uuid
+  operationTariffId  String          @db.Uuid
+  priceListVersionId String          @db.Uuid
+  sheetTariff        SheetTariff     @relation(fields: [sheetTariffId, priceListVersionId], references: [id, priceListVersionId], onDelete: Cascade, onUpdate: Restrict)
+  operationTariff    OperationTariff @relation(fields: [operationTariffId, priceListVersionId], references: [id, priceListVersionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([sheetTariffId, operationTariffId])
+  @@index([operationTariffId, priceListVersionId])
+}
+
+model Quote {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId         String?           @db.Uuid
+  createdById        String?           @db.Uuid
+  priceListVersionId String?           @db.Uuid
+  currency           String            @default("UZS") @db.Char(3)
+  status             QuoteStatus       @default(DRAFT)
+  priceStatus        PriceStatus       @default(MANUAL_REVIEW)
+  calculationVersion String            @db.VarChar(64)
+  inputSnapshot      Json
+  priceSnapshot      Json?
+  total              Decimal?          @db.Decimal(18, 2)
+  manualReason       String?
+  expiresAt          DateTime          @db.Timestamptz(3)
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime          @default(now()) @updatedAt @db.Timestamptz(3)
+  customer           Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  createdBy          User?             @relation("QuoteAuthor", fields: [createdById], references: [id], onDelete: SetNull)
+  priceListVersion   PriceListVersion? @relation(fields: [priceListVersionId, currency], references: [id, currency], onDelete: Restrict, onUpdate: Restrict)
+  items              QuoteItem[]
+  order              Order?
+
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([createdById])
+  @@index([priceListVersionId, currency])
+  @@index([status, expiresAt])
+}
+
+model QuoteItem {
+  id                  String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quoteId             String             @db.Uuid
+  position            Int
+  productId           String?            @db.Uuid
+  materialId          String?            @db.Uuid
+  sheetFormatId       String?            @db.Uuid
+  productionProfileId String?            @db.Uuid
+  inputSnapshot       Json
+  calculationSnapshot Json?
+  priceSnapshot       Json?
+  total               Decimal?           @db.Decimal(18, 2)
+  quote               Quote              @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product             Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  material            Material?          @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  sheetFormat         SheetFormat?       @relation(fields: [sheetFormatId], references: [id], onDelete: SetNull)
+  productionProfile   ProductionProfile? @relation(fields: [productionProfileId], references: [id], onDelete: SetNull)
+  orderItem           OrderItem?
+
+  @@unique([quoteId, position])
+  @@index([productId])
+  @@index([materialId])
+  @@index([sheetFormatId])
+  @@index([productionProfileId])
+}
+
+model Order {
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  number                BigInt             @unique @default(autoincrement())
+  idempotencyKey        String             @unique @db.VarChar(128)
+  customerId            String?            @db.Uuid
+  managerId             String?            @db.Uuid
+  quoteId               String?            @unique @db.Uuid
+  priceListVersionId    String?            @db.Uuid
+  currency              String             @default("UZS") @db.Char(3)
+  status                OrderStatus        @default(DRAFT)
+  paymentStatus         OrderPaymentStatus @default(UNPAID)
+  customerSnapshot      Json
+  configurationSnapshot Json
+  priceSnapshot         Json
+  subtotal              Decimal            @db.Decimal(18, 2)
+  discountAmount        Decimal            @default(0) @db.Decimal(18, 2)
+  deliveryAmount        Decimal            @default(0) @db.Decimal(18, 2)
+  total                 Decimal            @db.Decimal(18, 2)
+  fulfillment           Json               @default("{}")
+  comment               String?
+  termsAcceptedAt       DateTime?          @db.Timestamptz(3)
+  dueAt                 DateTime?          @db.Timestamptz(3)
+  createdAt             DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime           @default(now()) @updatedAt @db.Timestamptz(3)
+  customer              Customer?          @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  manager               User?              @relation("OrderManager", fields: [managerId], references: [id], onDelete: SetNull)
+  quote                 Quote?             @relation(fields: [quoteId], references: [id], onDelete: SetNull)
+  priceListVersion      PriceListVersion?  @relation(fields: [priceListVersionId, currency], references: [id, currency], onDelete: Restrict, onUpdate: Restrict)
+  items                 OrderItem[]
+  payments              Payment[]
+  statusHistory         StatusHistory[]
+
+  @@unique([id, currency])
+  @@index([customerId, createdAt(sort: Desc)])
+  @@index([managerId, status])
+  @@index([priceListVersionId, currency])
+  @@index([status, dueAt])
+  @@index([paymentStatus, createdAt(sort: Desc)])
+}
+
+model OrderItem {
+  id                      String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId                 String             @db.Uuid
+  position                Int
+  quoteItemId             String?            @unique @db.Uuid
+  productId               String?            @db.Uuid
+  materialId              String?            @db.Uuid
+  sheetFormatId           String?            @db.Uuid
+  productionProfileId     String?            @db.Uuid
+  quantityMode            QuantityMode
+  requestedQuantity       Int
+  widthMm                 Decimal?           @db.Decimal(10, 3)
+  heightMm                Decimal?           @db.Decimal(10, 3)
+  capacityPerSheet        Int?
+  nominalUnits            Int?
+  sellableSheets          Int?
+  billableSheets          Int?
+  productionSheets        Int?
+  sides                   PrintSides         @default(SINGLE)
+  artworkService          ArtworkService     @default(PROVIDED)
+  artworkApprovalRequired Boolean            @default(true)
+  configurationSnapshot   Json
+  calculationSnapshot     Json
+  priceSnapshot           Json
+  lineTotal               Decimal            @db.Decimal(18, 2)
+  createdAt               DateTime           @default(now()) @db.Timestamptz(3)
+  order                   Order              @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  quoteItem               QuoteItem?         @relation(fields: [quoteItemId], references: [id], onDelete: SetNull)
+  product                 Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  material                Material?          @relation(fields: [materialId], references: [id], onDelete: SetNull)
+  sheetFormat             SheetFormat?       @relation(fields: [sheetFormatId], references: [id], onDelete: SetNull)
+  productionProfile       ProductionProfile? @relation(fields: [productionProfileId], references: [id], onDelete: SetNull)
+  artwork                 Artwork?
+  productionJobs          ProductionJob[]
+  statusHistory           StatusHistory[]
+
+  @@unique([orderId, position])
+  @@index([productId])
+  @@index([materialId])
+  @@index([sheetFormatId])
+  @@index([productionProfileId])
+}
+
+model Artwork {
+  id                String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  customerId        String?          @db.Uuid
+  orderItemId       String?          @unique @db.Uuid
+  title             String           @db.VarChar(200)
+  status            ArtworkStatus    @default(MISSING)
+  approvedVersionId String?          @db.Uuid
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @default(now()) @updatedAt @db.Timestamptz(3)
+  customer          Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  orderItem         OrderItem?       @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  versions          ArtworkVersion[] @relation("ArtworkVersions")
+  approvedVersion   ArtworkVersion?  @relation("ApprovedVersion", fields: [approvedVersionId, id], references: [id, artworkId], onDelete: Restrict, onUpdate: Restrict)
+  statusHistory     StatusHistory[]
+
+  @@index([customerId])
+  @@index([status, updatedAt])
+  @@index([approvedVersionId, id])
+}
+
+model ArtworkVersion {
+  id               String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  artworkId        String          @db.Uuid
+  version          Int
+  storageBucket    String          @default("artwork") @db.VarChar(100)
+  sourceObjectKey  String          @db.VarChar(1024)
+  previewObjectKey String?         @db.VarChar(1024)
+  originalFilename String          @db.VarChar(255)
+  mimeType         String          @db.VarChar(100)
+  sizeBytes        BigInt
+  sha256           String?         @db.Char(64)
+  pixelWidth       Int?
+  pixelHeight      Int?
+  pageCount        Int?
+  fileCheckStatus  FileCheckStatus @default(PENDING)
+  reviewStatus     ArtworkStatus   @default(UNDER_REVIEW)
+  uploadedById     String?         @db.Uuid
+  approvedById     String?         @db.Uuid
+  approvedAt       DateTime?       @db.Timestamptz(3)
+  comment          String?
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  artwork          Artwork         @relation("ArtworkVersions", fields: [artworkId], references: [id], onDelete: Restrict)
+  approvedFor      Artwork[]       @relation("ApprovedVersion")
+  uploadedBy       User?           @relation("VersionUploader", fields: [uploadedById], references: [id], onDelete: SetNull)
+  approvedBy       User?           @relation("VersionApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  productionJobs   ProductionJob[]
+
+  @@unique([artworkId, version])
+  @@unique([id, artworkId])
+  @@unique([storageBucket, sourceObjectKey])
+  @@index([uploadedById])
+  @@index([approvedById])
+  @@index([fileCheckStatus, createdAt])
+}
+
+model Payment {
+  id                String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId           String              @db.Uuid
+  currency          String              @default("UZS") @db.Char(3)
+  kind              PaymentKind         @default(PAYMENT)
+  amount            Decimal             @db.Decimal(18, 2)
+  method            PaymentMethod
+  status            PaymentRecordStatus @default(PENDING)
+  idempotencyKey    String              @unique @db.VarChar(128)
+  provider          String?             @db.VarChar(64)
+  externalId        String?             @db.VarChar(200)
+  verifiedById      String?             @db.Uuid
+  verifiedAt        DateTime?           @db.Timestamptz(3)
+  evidenceObjectKey String?             @db.VarChar(1024)
+  note              String?
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
+  order             Order               @relation(fields: [orderId, currency], references: [id, currency], onDelete: Restrict, onUpdate: Restrict)
+  verifiedBy        User?               @relation("PaymentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  statusHistory     StatusHistory[]
+
+  @@unique([provider, externalId])
+  @@index([orderId, currency, status])
+  @@index([verifiedById])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model ProductionJob {
+  id                    String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderItemId           String              @db.Uuid
+  artworkVersionId      String?             @db.Uuid
+  productionProfileId   String?             @db.Uuid
+  assigneeId            String?             @db.Uuid
+  stage                 ProductionStage     @default(QUEUED)
+  status                ProductionJobStatus @default(PENDING)
+  specificationSnapshot Json
+  productionSheets      Int
+  goodUnits             Int                 @default(0)
+  defectUnits           Int                 @default(0)
+  checklist             Json                @default("{}")
+  dueAt                 DateTime?           @db.Timestamptz(3)
+  startedAt             DateTime?           @db.Timestamptz(3)
+  completedAt           DateTime?           @db.Timestamptz(3)
+  createdAt             DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime            @default(now()) @updatedAt @db.Timestamptz(3)
+  orderItem             OrderItem           @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  artworkVersion        ArtworkVersion?     @relation(fields: [artworkVersionId], references: [id], onDelete: Restrict)
+  productionProfile     ProductionProfile?  @relation(fields: [productionProfileId], references: [id], onDelete: Restrict)
+  assignee              User?               @relation(fields: [assigneeId], references: [id], onDelete: SetNull)
+  statusHistory         StatusHistory[]
+
+  @@index([stage, status, dueAt])
+  @@index([assigneeId, status])
+  @@index([orderItemId])
+  @@index([artworkVersionId])
+  @@index([productionProfileId])
+}
+
+model StatusHistory {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  entity          StatusEntity
+  field           String         @default("status") @db.VarChar(64)
+  orderId         String?        @db.Uuid
+  orderItemId     String?        @db.Uuid
+  artworkId       String?        @db.Uuid
+  paymentId       String?        @db.Uuid
+  productionJobId String?        @db.Uuid
+  fromStatus      String?        @db.VarChar(64)
+  toStatus        String         @db.VarChar(64)
+  reason          String?
+  actorId         String?        @db.Uuid
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  order           Order?         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  orderItem       OrderItem?     @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+  artwork         Artwork?       @relation(fields: [artworkId], references: [id], onDelete: Restrict)
+  payment         Payment?       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  productionJob   ProductionJob? @relation(fields: [productionJobId], references: [id], onDelete: Restrict)
+  actor           User?          @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt(sort: Desc)])
+  @@index([orderItemId, createdAt(sort: Desc)])
+  @@index([artworkId, createdAt(sort: Desc)])
+  @@index([paymentId, createdAt(sort: Desc)])
+  @@index([productionJobId, createdAt(sort: Desc)])
+  @@index([actorId])
+}
+
+model AuditLog {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  actorId    String?  @db.Uuid
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(64)
+  entityId   String?  @db.Uuid
+  before     Json?
+  after      Json?
+  reason     String?
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt(sort: Desc)])
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([createdAt])
+}
