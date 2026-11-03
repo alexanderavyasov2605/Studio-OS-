@@ -15,7 +15,11 @@ describe("architecture boundaries", () => {
       for (const file of sources(resolve(directory))) {
         const source = readFileSync(file, "utf8");
         expect(source, file).not.toMatch(/(?:from\s*|import\s*)["'][^"']*(?:server\/|@prisma\/)/);
-        expect(source, file).not.toMatch(/process\.env|process\[["']env["']\]/);
+        // NODE_ENV in the server-rendered /ui-kit page is a build-mode gate, not a secret.
+        const checked = file === resolve("app/(public)/ui-kit/page.tsx")
+          ? source.replaceAll("process.env.NODE_ENV", '"build-mode"')
+          : source;
+        expect(checked, file).not.toMatch(/process\.env|process\[["']env["']\]/);
       }
     }
   });

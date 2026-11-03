@@ -20,7 +20,15 @@ for (const [path, heading] of routes) {
   assert.match(html, /<html lang="ru"/, path);
   assert.ok(html.includes(heading), path);
   assert.ok(html.includes("Страница-заглушка"), path);
-  assert.equal(html.includes('aria-label="Основная навигация"'), path !== "/admin", path);
+  assert.equal(html.includes('aria-label="Основная навигация"'), path !== "/admin" && path !== "/mini", path);
   assert.equal(html.includes('aria-label="Административная навигация"'), path === "/admin", path);
+  assert.equal(html.includes('aria-label="Навигация Mini App"'), path === "/mini", path);
   console.log(`PASS ${path}: HTTP 200, page content and layout`);
 }
+
+const uiKit = await fetch(new URL("/ui-kit", baseUrl));
+const isDev = baseUrl.endsWith(":3100");
+assert.equal(uiKit.status, isDev ? 200 : 404, "UI kit is development-only");
+const kitHtml = await uiKit.text();
+assert.equal(kitHtml.includes("Справочник визуальных статусов"), isDev);
+console.log(`PASS /ui-kit: ${isDev ? "available in dev" : "404 in production"}`);
