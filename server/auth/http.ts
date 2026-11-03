@@ -1,7 +1,8 @@
 import "server-only";
 import { NextRequest, NextResponse } from "next/server";
 import { authenticationOrigin, sessionCookieName, sessionCookieOptions } from "./config";
-import { AuthError, audit, login, logout, requireActor, updateSheetTariff, validEmail } from "./service";
+import { AuthError, allowed, audit, login, logout, requireActor, updateSheetTariff, validEmail } from "./service";
+import { adminCatalog, saveProduct } from "../catalog/service";
 
 export function privateJson(body: unknown, status = 200) {
   return NextResponse.json(body, { status, headers: {
@@ -15,7 +16,7 @@ function checkOrigin(request: Request) {
     throw new AuthError(403, "INVALID_ORIGIN", "Запрос отклонён.");
   }
 }
-async function readObject(request: Request): Promise<Record<string, unknown>> {
+async function readObject(request: Request, limit = 4096): Promise<Record<string, unknown>> {
   if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") throw new AuthError(400, "INVALID_INPUT", "Некорректный запрос.");
   const reader = request.body?.getReader();
   if (!reader) throw new AuthError(400, "INVALID_INPUT", "Некорректный запрос.");
@@ -26,7 +27,7 @@ async function readObject(request: Request): Promise<Record<string, unknown>> {
       const next = await reader.read();
       if (next.done) break;
       size += next.value.length;
-      if (size > 4096) {
+      if (size > limit) {
         await reader.cancel();
         throw new AuthError(413, "BODY_TOO_LARGE", "Запрос слишком большой.");
       }
@@ -63,6 +64,9 @@ export async function handleAdminRequest(request: NextRequest, segments: string[
       return response;
     }
     const actor = await requireActor(token);
+    if (path === "catalog" && request.method === "GET") return privateJson({ ...(await adminCatalog()), canWrite: allowed(actor, "catalog:write") });
+    if (path === "catalog/products" && request.method === "POST") return privateJson(await saveProduct(token, null, await readObject(request, 32768)), 201);
+    if (segments.length === 3 && segments[0] === "catalog" && segments[1] === "products" && request.method === "PUT") return privateJson(await saveProduct(token, segments[2], await readObject(request, 32768)));
     if (path === "session" && request.method === "GET") return privateJson({ user: actor });
     if (segments.length === 2 && segments[0] === "tariffs" && request.method === "PATCH") {
       return privateJson(await updateSheetTariff(token, segments[1], await readObject(request)));

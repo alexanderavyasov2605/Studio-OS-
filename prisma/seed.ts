@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "../server/generated/prisma/client";
+import { seedCatalog } from "./catalog-seed";
 
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) throw new Error("DATABASE_URL is required for db:seed");
@@ -34,8 +35,9 @@ try {
         },
       });
     }
+    await seedCatalog(tx);
   });
-  console.log("Reference seed complete: A4/A3 and three unavailable demo materials. Existing rows unchanged.");
+  console.log("Seed complete: formats, demo references and five catalog products. Existing rows unchanged.");
 } finally {
   await prisma.$disconnect();
 }
