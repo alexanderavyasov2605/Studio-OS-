@@ -1,0 +1,86 @@
+import "dotenv/config";
+import assert from "node:assert/strict";
+import { generateKeyPairSync, randomUUID, sign } from "node:crypto";
+import { database } from "../server/database";
+import { beginTelegramLogin, finishTelegramLogin } from "../server/auth/telegram";
+import { actorForSession, digestToken, logout, userForSession } from "../server/auth/service";
+import { TELEGRAM_ISSUER } from "../server/auth/telegram-token";
+
+const url = process.env.DATABASE_TEST_URL;
+if (!url || process.env.DATABASE_URL !== url || !["localhost", "127.0.0.1"].includes(new URL(url).hostname) || !new URL(url).pathname.endsWith("_test")) throw new Error("Use a dedicated local disposable database ending in _test");
+process.env.TELEGRAM_CLIENT_ID = "123456";
+process.env.TELEGRAM_CLIENT_SECRET = "synthetic-test-secret-only";
+process.env.TELEGRAM_ADMIN_ID = "930826522";
+const db = database();
+const originalFetch = globalThis.fetch;
+const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+const jwk = { ...publicKey.export({ format: "jwk" }), kid: "fixture", alg: "RS256" };
+const codes = new Map<string, { id: number; nonce: string; verifier: string }>();
+const userIds: string[] = [];
+globalThis.fetch = async (input, init) => {
+  if (String(input) === TELEGRAM_ISSUER + "/.well-known/jwks.json") return Response.json({ keys: [jwk] });
+  assert.equal(String(input), TELEGRAM_ISSUER + "/token");
+  const body = new URLSearchParams(String(init?.body));
+  const record = codes.get(body.get("code")!);
+  assert.ok(record); codes.delete(body.get("code")!);
+  assert.equal(body.get("code_verifier"), record.verifier);
+  const now = Math.floor(Date.now() / 1000);
+  const parts = [{ alg: "RS256", kid: "fixture" }, { iss: TELEGRAM_ISSUER, aud: "123456", sub: randomUUID(), id: record.id, name: "Synthetic Telegram user", nonce: record.nonce, iat: now, exp: now + 300 }].map(value => Buffer.from(JSON.stringify(value)).toString("base64url"));
+  const token = parts.join(".") + "." + sign("RSA-SHA256", Buffer.from(parts.join(".")), privateKey).toString("base64url");
+  return Response.json({ id_token: token });
+};
+async function challenge(id: number) {
+  const attempt = await beginTelegramLogin();
+  const auth = new URL(attempt.url);
+  assert.equal(auth.origin, TELEGRAM_ISSUER);
+  assert.equal(auth.searchParams.get("code_challenge_method"), "S256");
+  const state = auth.searchParams.get("state")!;
+  const stored = await db.telegramLoginAttempt.findUniqueOrThrow({ where: { stateHash: digestToken(state) } });
+  const code = randomUUID(); codes.set(code, { id, nonce: stored.nonce, verifier: stored.verifier });
+  return { state, browser: attempt.browser, code };
+}
+try {
+  assert.equal(await db.user.count(), 0, "Refusing an occupied user fixture");
+  assert.equal(await db.telegramIdentity.count(), 0, "Refusing an occupied Telegram fixture");
+  await db.loginThrottle.deleteMany();
+  const owner = await challenge(930826522);
+  await assert.rejects(finishTelegramLogin(owner.state, "x".repeat(43), owner.code));
+  const session = await finishTelegramLogin(owner.state, owner.browser, owner.code);
+  const actor = await actorForSession(session.token);
+  assert.equal(actor?.role, "ADMIN"); userIds.push(actor!.id);
+  assert.equal(session.destination, "/admin");
+  await assert.rejects(finishTelegramLogin(owner.state, owner.browser, owner.code), "One-time challenge");
+  const again = await challenge(930826522);
+  await finishTelegramLogin(again.state, again.browser, again.code);
+  assert.equal(await db.user.count(), 1, "Repeat login does not duplicate users");
+  process.env.TELEGRAM_ADMIN_ID = "42";
+  assert.equal(await actorForSession(session.token), null, "Owner removal revokes access");
+  process.env.TELEGRAM_ADMIN_ID = "930826522";
+  await logout(session.token);
+  assert.equal(await actorForSession(session.token), null, "Logout revokes token");
+  const client = await challenge(42);
+  const customer = await finishTelegramLogin(client.state, client.browser, client.code);
+  assert.equal(customer.destination, "/account");
+  assert.equal(await actorForSession(customer.token), null, "Client cannot become staff");
+  const user = await userForSession(customer.token); assert.ok(user); userIds.push(user.id);
+  assert.deepEqual(user.roles, ["CLIENT"]);
+  await db.user.update({ where: { id: user.id }, data: { isActive: false } });
+  assert.equal(await userForSession(customer.token), null, "Disabled account revokes access");
+  await db.user.update({ where: { id: user.id }, data: { isActive: true } });
+  await db.telegramIdentity.delete({ where: { userId: user.id } });
+  assert.equal(await userForSession(customer.token), null, "Unlink revokes access");
+  const expired = await challenge(43);
+  await db.telegramLoginAttempt.update({ where: { stateHash: digestToken(expired.state) }, data: { expiresAt: new Date(Date.now() - 1000), createdAt: new Date(Date.now() - 600000) } });
+  await assert.rejects(finishTelegramLogin(expired.state, expired.browser, expired.code));
+  const race = await challenge(44);
+  const concurrent = await Promise.allSettled([finishTelegramLogin(race.state, race.browser, race.code), finishTelegramLogin(race.state, race.browser, race.code)]);
+  assert.equal(concurrent.filter(item => item.status === "fulfilled").length, 1);
+  const identity = await db.telegramIdentity.findUniqueOrThrow({ where: { telegramUserId: BigInt(44) } }); userIds.push(identity.userId);
+  const audit = JSON.stringify(await db.auditLog.findMany({ where: { actorId: { in: userIds } } }));
+  assert.ok(!audit.includes(session.token) && !audit.includes(process.env.TELEGRAM_CLIENT_SECRET!));
+  console.log("PASS Telegram: browser binding, one-time/racing/expired challenges, PKCE, verified owner, client isolation, disable, logout, audit redaction");
+} finally {
+  globalThis.fetch = originalFetch;
+  await db.user.deleteMany({ where: { id: { in: userIds } } });
+  await db.telegramLoginAttempt.deleteMany(); await db.loginThrottle.deleteMany(); await db.$disconnect();
+}

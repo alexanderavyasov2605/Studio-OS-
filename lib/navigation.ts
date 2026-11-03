@@ -5,4 +5,5 @@ export const publicNavigation = [
   { href: "/cart", label: "Корзина" },
   { href: "/orders", label: "Заказы" },
   { href: "/mini", label: "Mini App" },
+  { href: "/account", label: "Аккаунт" },
 ] as const;

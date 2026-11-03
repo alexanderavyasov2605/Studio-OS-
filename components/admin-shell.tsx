@@ -19,7 +19,7 @@ function AdminLinks() {
     <Link className="sidebar-link" href="/mini"><Icon name="layers" />Mini App</Link>
   </>;
 }
-export function AdminShell({ children, staff }: { children: ReactNode; staff: { email: string; role: "ADMIN" | "OPERATOR" } }) {
+export function AdminShell({ children, staff }: { children: ReactNode; staff: { email: string | null; role: "ADMIN" | "OPERATOR" } }) {
   const path = usePathname();
   const menu = useRef<HTMLDetailsElement>(null);
   return <div className="admin-shell">

@@ -12,6 +12,16 @@ const routes = [
   ["/mini", "Telegram Mini App"],
 ];
 
+for (const [path, status] of [["/login", 200], ["/account", 307], ["/api/auth/session", 401], ["/api/auth/telegram/start", 404], ["/api/auth/telegram/callback?state=invalid&code=invalid", 303]]) {
+  const response = await fetch(new URL(path, baseUrl), { redirect: "manual" });
+  assert.equal(response.status, status, path);
+}
+for (const path of ["/api/auth/logout", "/api/auth/telegram/start"]) {
+  const response = await fetch(new URL(path, baseUrl), { method: "POST", redirect: "manual", headers: { Origin: "https://invalid.example" } });
+  assert.equal(response.status, 403, path + " rejects foreign origin");
+}
+console.log("PASS Telegram auth HTTP: public login, guest restrictions, callback failure and CSRF");
+
 for (const [path, heading] of routes) {
   const response = await fetch(new URL(path, baseUrl));
   assert.equal(response.status, 200, path);

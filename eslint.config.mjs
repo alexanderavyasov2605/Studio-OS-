@@ -33,5 +33,9 @@ export default defineConfig([
     files: ["app/api/health/route.ts"],
     rules: { "no-restricted-imports": ["error", { patterns: [{ regex: "^(?:@/server(?:$|/(?!health$))|(?:\\.\\./)+server(?:/|$)|@prisma/)", message: "Health route may import only the marked readiness entry point." }] }] }
   },
+  {
+    files: ["app/(public)/login/page.tsx", "app/(public)/account/page.tsx", "app/api/auth/**/route.ts"],
+    rules: { "no-restricted-imports": ["error", { patterns: [{ regex: "^(?:@/server(?:$|/(?!(?:auth/(?:pages|telegram-http))$))|(?:\\.\\./)+server(?:/|$)|@prisma/)", message: "Authentication adapters may import only the marked auth entry points." }] }] }
+  },
   globalIgnores([".next/**", ".next-auth/**", ".next-auth-*/**", ".pnpm-store/**", ".pnpm-cache/**", "out/**", "coverage/**", "server/generated/**", "next-env.d.ts"])
 ]);

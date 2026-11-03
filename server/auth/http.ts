@@ -10,7 +10,7 @@ export function privateJson(body: unknown, status = 200) {
     "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex, nofollow",
   } });
 }
-function checkOrigin(request: Request) {
+export function checkOrigin(request: Request) {
   const site = request.headers.get("sec-fetch-site");
   if (request.headers.get("origin") !== authenticationOrigin().origin || (site && site !== "same-origin" && site !== "none")) {
     throw new AuthError(403, "INVALID_ORIGIN", "Запрос отклонён.");
