@@ -1,8 +1,12 @@
 # Studio OS
 
+Версия для просмотра: [каталог Studio OS](https://studio-os-production-edbe.up.railway.app/catalog). Размещение Railway/Supabase: [DEPLOYMENT](docs/DEPLOYMENT.md). Используется release/production-review, без merge в main. Docker-сборка не требует секретов; перед запуском применяются миграции и повторяемый seed.
+
 Studio OS: Next.js App Router, TypeScript strict, Tailwind CSS, PostgreSQL/Prisma и pnpm. Реализованы дизайн-система, база данных, защищённый вход сотрудников и рабочий каталог. Остальные бизнес-разделы пока — заглушки.
 
 ## Локальный запуск
+
+Вход через @StudiaOSBot: [настройка Telegram Login](docs/TELEGRAM_AUTH.md). Нужны Client ID/Secret из BotFather, секрет остаётся только в окружении сервера.
 
 Требуются Node.js 22.12+ (рекомендуется Node.js 24 LTS) и pnpm 11.25.0.
 
@@ -62,7 +66,7 @@ pnpm настроен на hoisted node_modules и локальный игнор
 
 ## Размещение и ограничения
 
-Deployment не настроен и не выполняется. Текущая сборка рассчитана на локальный Node.js, с динамическим slug.
+Текущая версия подготовлена для Node.js в Railway с Supabase; фактический статус размещения — в PROGRESS. Используются динамические SSR-маршруты.
 Cloudflare остаётся целевой площадкой интерфейса. Перед размещением потребуется отдельный выбор: статическая генерация известных slug либо проверенный Cloudflare-адаптер и обоснование Workers для динамических маршрутов.
 Не считать стандартную Node-сборку готовым артефактом Cloudflare Pages.
 Prisma и будущая бизнес-логика остаются в едином Node.js backend; не дублировать их в Next.js API/Actions и боте.

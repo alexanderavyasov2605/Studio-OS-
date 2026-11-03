@@ -4,7 +4,7 @@ import { Prisma, type PrismaClient } from "../generated/prisma/client";
 import { verifyPassword } from "./password";
 import { SESSION_SECONDS } from "./config";
 
-export type Actor = { id: string; email: string; displayName: string | null; role: "ADMIN" | "OPERATOR"; permissions: string[] };
+export type Actor = { id: string; email: string | null; displayName: string | null; role: "ADMIN" | "OPERATOR"; permissions: string[] };
 export type Permission = "tariffs:write" | "catalog:write";
 type Store = PrismaClient | Prisma.TransactionClient;
 export class AuthError extends Error {
@@ -15,7 +15,7 @@ export const digestToken = (token: string) => createHash("sha256").update(token)
 export function normalizeEmail(email: string): string { return email.trim().toLowerCase(); }
 export function validEmail(email: string): boolean { return email.length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email); }
 function staff(user: { id: string; email: string | null; displayName: string | null; isActive: boolean; roles: string[]; permissions: string[] }): Actor | null {
-  if (!user.isActive || !user.email) return null;
+  if (!user.isActive) return null;
   const role = user.roles.includes("ADMIN") ? "ADMIN" : user.roles.includes("OPERATOR") ? "OPERATOR" : null;
   return role ? { id: user.id, email: user.email, displayName: user.displayName, role, permissions: user.permissions } : null;
 }
@@ -23,7 +23,7 @@ export function allowed(actor: Actor, permission: Permission): boolean { return 
 export async function audit(action: string, actorId: string | null, detail: Prisma.InputJsonObject = {}, store: Store = database()) {
   await store.auditLog.create({ data: { action, actorId, entityType: "AdminAuthentication", after: detail } });
 }
-async function consumeAttempt(email: string): Promise<boolean> {
+export async function consumeAttempt(email: string, globalOnly = false): Promise<boolean> {
   const key = "email:" + digestToken(email);
   return database().$transaction(async (tx) => {
     const global = await tx.$queryRaw<Array<{ attempts: number }>>`
@@ -38,6 +38,7 @@ async function consumeAttempt(email: string): Promise<boolean> {
       await audit("auth.login_throttled", null, { bucket: "global" }, tx);
       return false;
     }
+    if (globalOnly) return true;
     const account = await tx.$queryRaw<Array<{ attempts: number }>>`
       INSERT INTO "LoginThrottle" (key, "windowStart", attempts)
       VALUES (${key}, date_bin('15 minutes', now(), '2000-01-01'::timestamptz), 1)
@@ -79,18 +80,28 @@ export async function login(emailValue: string, password: string) {
   if (!result) throw new AuthError(401, "INVALID_CREDENTIALS", INVALID_LOGIN);
   return { ...result, token };
 }
-export async function actorForSession(token: string | undefined, store?: Store): Promise<Actor | null> {
+export async function userForSession(token: string | undefined, store?: Store) {
   if (!token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
   const session = await (store ?? database()).adminSession.findUnique({
     where: { tokenHash: digestToken(token) },
     select: {
-      userId: true, expiresAt: true, revokedAt: true, credentialVersion: true,
-      user: { select: { id: true, email: true, displayName: true, roles: true, permissions: true, isActive: true, adminCredential: { select: { version: true } } } },
+      userId: true, expiresAt: true, revokedAt: true, credentialVersion: true, authProvider: true,
+      user: { select: { id: true, email: true, displayName: true, roles: true, permissions: true, isActive: true, telegramIdentity: { select: { telegramUserId: true } }, adminCredential: { select: { version: true } } } },
     },
   });
-  if (!session || session.revokedAt || session.expiresAt <= new Date() ||
-      session.user.adminCredential?.version !== session.credentialVersion) return null;
-  return staff(session.user);
+  if (!session || session.revokedAt || session.expiresAt <= new Date() || !session.user.isActive) return null;
+  if (session.authProvider === "PASSWORD") {
+    if (session.user.adminCredential?.version !== session.credentialVersion) return null;
+  } else if (session.authProvider === "TELEGRAM") {
+    if (!session.user.telegramIdentity) return null;
+    // Removing the trusted owner ID immediately revokes Telegram administrator access.
+    if (session.user.roles.includes("ADMIN") && session.user.telegramIdentity.telegramUserId.toString() !== process.env.TELEGRAM_ADMIN_ID) return null;
+  } else return null;
+  return session.user;
+}
+export async function actorForSession(token: string | undefined, store?: Store): Promise<Actor | null> {
+  const user = await userForSession(token, store);
+  return user ? staff(user) : null;
 }
 export async function requireActor(token: string | undefined, store?: Store): Promise<Actor> {
   const actor = await actorForSession(token, store);

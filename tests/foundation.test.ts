@@ -22,6 +22,10 @@ describe("architecture boundaries", () => {
           [resolve("app/(public)/catalog/(listing)/page.tsx"), "@/server/catalog"],
           [resolve("app/(public)/catalog/[slug]/page.tsx"), "@/server/catalog"],
           [resolve("app/api/admin/[...segments]/route.ts"), "@/server/auth/http"],
+          [resolve("app/api/health/route.ts"), "@/server/health"],
+          [resolve("app/api/auth/[...segments]/route.ts"), "@/server/auth/telegram-http"],
+          [resolve("app/(public)/login/page.tsx"), "@/server/auth/pages"],
+          [resolve("app/(public)/account/page.tsx"), "@/server/auth/pages"],
         ]);
         const entry = adapters.get(file);
         if (entry) expect(source, file).not.toMatch(/["']use client["']/);

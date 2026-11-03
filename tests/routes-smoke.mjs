@@ -12,6 +12,25 @@ const routes = [
   ["/mini", "Telegram Mini App"],
 ];
 
+for (const [path, status] of [["/login", 200], ["/account", 307], ["/api/auth/session", 401], ["/api/auth/telegram/start", 404], ["/api/auth/telegram/callback?state=invalid&code=invalid", 303]]) {
+  const response = await fetch(new URL(path, baseUrl), { redirect: "manual" });
+  assert.equal(response.status, status, path);
+}
+for (const path of ["/api/auth/logout", "/api/auth/telegram/start"]) {
+  const response = await fetch(new URL(path, baseUrl), { method: "POST", redirect: "manual", headers: { Origin: "https://invalid.example" } });
+  assert.equal(response.status, 403, path + " rejects foreign origin");
+}
+console.log("PASS Telegram auth HTTP: public login, guest restrictions, callback failure and CSRF");
+const telegramStart = await fetch(new URL("/api/auth/telegram/start", baseUrl), {
+  method: "POST", redirect: "manual", headers: { Origin: process.env.APP_ORIGIN ?? new URL(baseUrl).origin, Accept: "application/json" },
+});
+assert.ok([200, 503].includes(telegramStart.status), "JSON login starts or explicitly reports missing configuration");
+const telegramBody = await telegramStart.json();
+if (telegramStart.status === 200) {
+  assert.equal(new URL(telegramBody.url).origin, "https://oauth.telegram.org");
+  assert.match(telegramStart.headers.get("set-cookie"), /HttpOnly/i);
+} else assert.equal(telegramBody.error, "NOT_CONFIGURED");
+
 for (const [path, heading] of routes) {
   const response = await fetch(new URL(path, baseUrl));
   assert.equal(response.status, 200, path);
@@ -35,6 +54,11 @@ assert.equal((await fetch(new URL("/api/admin/session", baseUrl))).status, 401);
 console.log("PASS guest admin redirect, public staff login and protected service API");
 
 const uiKit = await fetch(new URL("/ui-kit", baseUrl));
+const health = await fetch(new URL("/api/health", baseUrl));
+assert.equal(health.status, 200, "Migrated database is ready");
+assert.deepEqual(await health.json(), { status: "ok" });
+assert.equal(health.headers.get("cache-control"), "no-store");
+console.log("PASS readiness: catalog/session tables accessible, no details exposed");
 const isDev = baseUrl.endsWith(":3100");
 assert.equal(uiKit.status, isDev ? 200 : 404, "UI kit is development-only");
 const kitHtml = await uiKit.text();

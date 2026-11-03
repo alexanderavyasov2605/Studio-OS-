@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+!.env.example
+node_modules
+.next
+.next-auth
+.next-auth-*
+.pnpm-store
+.pnpm-cache
+server/generated
+coverage
+*.tsbuildinfo
+tests
+outputs
+work
