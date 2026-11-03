@@ -1,6 +1,9 @@
 import { createPublicKey, verify, type JsonWebKey } from "node:crypto";
 
 export const TELEGRAM_ISSUER = "https://oauth.telegram.org";
+export class TelegramVerificationError extends Error {
+  constructor(public readonly reason: string) { super("Telegram verification failed"); }
+}
 type Key = JsonWebKey & { kid?: string; alg?: string; use?: string };
 let cached: { keys: Key[]; until: number } | undefined;
 
@@ -43,7 +46,12 @@ export function verifyTelegramToken(token: string, clientId: string, nonce: stri
   const publicKey = createPublicKey({ format: "jwk", key: { kty: "RSA", n: key.n, e: key.e } });
   if (!verify("RSA-SHA256", Buffer.from(headerPart + "." + payloadPart), publicKey, Buffer.from(signature, "base64url"))) throw new Error("Invalid signature");
   const claims = JSON.parse(Buffer.from(payloadPart, "base64url").toString("utf8"));
-  if (claims.iss !== TELEGRAM_ISSUER || claims.aud !== clientId || claims.nonce !== nonce ||
+  if (claims.iss !== TELEGRAM_ISSUER) throw new TelegramVerificationError("issuer");
+  if (claims.aud !== clientId) throw new TelegramVerificationError("audience");
+  if (claims.nonce !== nonce) throw new TelegramVerificationError(claims.nonce === undefined ? "nonce_missing" : "nonce_mismatch");
+  if (claims.id === undefined) throw new TelegramVerificationError("id_missing");
+  if (typeof claims.id !== "number") throw new TelegramVerificationError("id_type");
+  if (
       typeof claims.exp !== "number" || claims.exp <= now || typeof claims.iat !== "number" || claims.iat > now + 30 || claims.iat < now - 600 || claims.exp <= claims.iat ||
       (claims.nbf !== undefined && (typeof claims.nbf !== "number" || claims.nbf > now + 30)) ||
       typeof claims.sub !== "string" || !claims.sub || !Number.isSafeInteger(claims.id) || claims.id <= 0) throw new Error("Invalid claims");

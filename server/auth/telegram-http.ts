@@ -4,6 +4,7 @@ import { authenticationOrigin, sessionCookieName, sessionCookieOptions } from ".
 import { checkOrigin, privateJson } from "./http";
 import { audit, AuthError, logout, userForSession } from "./service";
 import { beginTelegramLogin, finishTelegramLogin, telegramCookieName } from "./telegram";
+import { TelegramVerificationError } from "./telegram-token";
 
 function redirect(path: string, status = 303) {
   const response = NextResponse.redirect(new URL(path, authenticationOrigin()), status);
@@ -46,7 +47,9 @@ export async function handleTelegramRequest(request: NextRequest, segments: stri
     return privateJson({ error: "NOT_FOUND" }, 404);
   } catch (error) {
     if (path === "telegram/callback") {
-      await audit("auth.telegram_login_failed", null).catch(() => {});
+      const reason = error instanceof TelegramVerificationError ? error.reason : error instanceof AuthError ? error.code :
+        error instanceof Error && ["Telegram unavailable", "Invalid Telegram response", "Invalid signature", "Invalid key", "Invalid algorithm", "Invalid claims"].includes(error.message) ? error.message : "UNAVAILABLE";
+      await audit("auth.telegram_login_failed", null, { reason }).catch(() => {});
       const response = redirect("/login?error=telegram");
       response.cookies.set(telegramCookieName(), "", { ...sessionCookieOptions(), sameSite: "lax", maxAge: 0 });
       return response;

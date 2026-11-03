@@ -32,12 +32,14 @@ export async function beginTelegramLogin() {
 
 export async function finishTelegramLogin(state: string, browser: string, code: string) {
   const config = telegramConfiguration();
-  if (!config || !/^[\w-]{43}$/.test(state) || !/^[\w-]{43}$/.test(browser) || !code || code.length > 4096) throw new AuthError(401, "INVALID_TELEGRAM_LOGIN", "Не удалось подтвердить вход.");
+  if (!config) throw new AuthError(503, "NOT_CONFIGURED", "Не удалось подтвердить вход.");
+  if (!/^[\w-]{43}$/.test(browser)) throw new AuthError(401, "TELEGRAM_BROWSER_MISSING", "Не удалось подтвердить вход.");
+  if (!/^[\w-]{43}$/.test(state) || !code || code.length > 4096) throw new AuthError(401, "INVALID_TELEGRAM_LOGIN", "Не удалось подтвердить вход.");
   // DELETE RETURNING consumes the challenge exactly once, including concurrent callbacks.
   const attempts = await database().$queryRaw<Array<{ verifier: string; nonce: string }>>`
     DELETE FROM "TelegramLoginAttempt" WHERE "stateHash" = ${digestToken(state)} AND "browserHash" = ${digestToken(browser)} AND "expiresAt" > now() RETURNING verifier, nonce`;
   const attempt = attempts[0];
-  if (!attempt) throw new AuthError(401, "INVALID_TELEGRAM_LOGIN", "Не удалось подтвердить вход.");
+  if (!attempt) throw new AuthError(401, "TELEGRAM_CHALLENGE_INVALID", "Не удалось подтвердить вход.");
   const response = await fetch(TELEGRAM_ISSUER + "/token", {
     method: "POST", redirect: "error", signal: AbortSignal.timeout(8000),
     headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: "Basic " + Buffer.from(config.clientId + ":" + config.secret).toString("base64") },
