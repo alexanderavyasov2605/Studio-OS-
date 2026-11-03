@@ -5,7 +5,7 @@ const mode = process.argv.includes("--dev") ? "dev" : "start";
 const port = mode === "dev" ? "3100" : "3101";
 const server = spawn(process.execPath, [
   fileURLToPath(import.meta.resolve("next/dist/bin/next")),
-  mode, "--hostname", "127.0.0.1", "--port", port,
+  mode, ...(mode === "dev" ? ["--webpack"] : []), "--hostname", "127.0.0.1", "--port", port,
 ], { stdio: ["ignore", "pipe", "pipe"], windowsHide: true });
 let output = "";
 
@@ -27,11 +27,17 @@ try {
       reject(new Error(`Next.js exited before readiness: ${code}`));
     });
   });
-  const smoke = spawnSync(process.execPath, [
+  const smoke = spawn(process.execPath, [
     "tests/routes-smoke.mjs", `http://127.0.0.1:${port}`,
-  ], { stdio: "inherit", windowsHide: true, timeout: 120_000 });
-  if (smoke.error) throw smoke.error;
-  if (smoke.status !== 0) throw new Error(`Route checks failed: ${smoke.status}`);
+  ], { stdio: "inherit", windowsHide: true });
+  await new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => { smoke.kill(); reject(new Error("Route checks timed out")); }, 120_000);
+    smoke.once("error", (error) => { clearTimeout(timeout); reject(error); });
+    smoke.once("exit", (code) => {
+      clearTimeout(timeout);
+      if (code === 0) resolve(); else reject(new Error(`Route checks failed: ${code}`));
+    });
+  });
   console.log(`PASS Next.js ${mode} startup and all route checks`);
 } catch (error) {
   console.error(output);

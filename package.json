@@ -8,8 +8,8 @@
     "node": ">=22.12.0"
   },
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
+    "dev": "next dev --webpack",
+    "build": "prisma generate && next build --webpack",
     "start": "next start",
     "lint": "eslint . --max-warnings=0",
     "typecheck": "prisma generate && next typegen && tsc --noEmit",
@@ -20,7 +20,9 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "prisma db seed",
-    "db:test": "prisma generate && tsx tests/database.integration.ts"
+    "db:test": "prisma generate && tsx tests/database.integration.ts",
+    "admin:bootstrap": "prisma generate && tsx scripts/bootstrap-admin.ts",
+    "auth:test": "tsx tests/auth.integration.ts"
   },
   "dependencies": {
     "next": "16.4.4",

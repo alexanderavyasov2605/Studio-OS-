@@ -10,7 +10,6 @@ const routes = [
   ["/cart", "Корзина"],
   ["/orders", "Мои заказы"],
   ["/mini", "Telegram Mini App"],
-  ["/admin", "Администрирование"],
 ];
 
 for (const [path, heading] of routes) {
@@ -25,6 +24,15 @@ for (const [path, heading] of routes) {
   assert.equal(html.includes('aria-label="Навигация Mini App"'), path === "/mini", path);
   console.log(`PASS ${path}: HTTP 200, page content and layout`);
 }
+
+const admin = await fetch(new URL("/admin", baseUrl), { redirect: "manual" });
+assert.equal(admin.status, 307, (await admin.text()).slice(0, 2000));
+assert.equal(new URL(admin.headers.get("location"), baseUrl).pathname, "/admin/login");
+const login = await fetch(new URL("/admin/login", baseUrl));
+assert.equal(login.status, 200);
+assert.ok((await login.text()).includes("Вход для сотрудников"));
+assert.equal((await fetch(new URL("/api/admin/session", baseUrl))).status, 401);
+console.log("PASS guest admin redirect, public staff login and protected service API");
 
 const uiKit = await fetch(new URL("/ui-kit", baseUrl));
 const isDev = baseUrl.endsWith(":3100");

@@ -1,4 +1,4 @@
 import "server-only";
 
-// Future shared application layer. No business operations or database connection yet.
+// Shared application boundary. Authentication lives in server/auth; other domains remain future work.
 export {};

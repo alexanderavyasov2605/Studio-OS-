@@ -14,7 +14,16 @@ describe("architecture boundaries", () => {
     for (const directory of ["app", "components", "lib"]) {
       for (const file of sources(resolve(directory))) {
         const source = readFileSync(file, "utf8");
-        expect(source, file).not.toMatch(/(?:from\s*|import\s*)["'][^"']*(?:server\/|@prisma\/)/);
+        const adapters = new Map([
+          [resolve("app/admin/login/page.tsx"), "@/server/auth/pages"],
+          [resolve("app/admin/(protected)/layout.tsx"), "@/server/auth/pages"],
+          [resolve("app/admin/(protected)/page.tsx"), "@/server/auth/pages"],
+          [resolve("app/api/admin/[...segments]/route.ts"), "@/server/auth/http"],
+        ]);
+        const entry = adapters.get(file);
+        if (entry) expect(source, file).not.toMatch(/["']use client["']/);
+        const imports = entry ? source.replaceAll('"' + entry + '"', '"auth-server-entry"') : source;
+        expect(imports, file).not.toMatch(/(?:from\s*|import\s*)["'][^"']*(?:server\/|@prisma\/)/);
         // NODE_ENV in the server-rendered /ui-kit page is a build-mode gate, not a secret.
         const checked = file === resolve("app/(public)/ui-kit/page.tsx")
           ? source.replaceAll("process.env.NODE_ENV", '"build-mode"')
