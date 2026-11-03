@@ -21,6 +21,15 @@ for (const path of ["/api/auth/logout", "/api/auth/telegram/start"]) {
   assert.equal(response.status, 403, path + " rejects foreign origin");
 }
 console.log("PASS Telegram auth HTTP: public login, guest restrictions, callback failure and CSRF");
+const telegramStart = await fetch(new URL("/api/auth/telegram/start", baseUrl), {
+  method: "POST", redirect: "manual", headers: { Origin: process.env.APP_ORIGIN ?? new URL(baseUrl).origin, Accept: "application/json" },
+});
+assert.ok([200, 503].includes(telegramStart.status), "JSON login starts or explicitly reports missing configuration");
+const telegramBody = await telegramStart.json();
+if (telegramStart.status === 200) {
+  assert.equal(new URL(telegramBody.url).origin, "https://oauth.telegram.org");
+  assert.match(telegramStart.headers.get("set-cookie"), /HttpOnly/i);
+} else assert.equal(telegramBody.error, "NOT_CONFIGURED");
 
 for (const [path, heading] of routes) {
   const response = await fetch(new URL(path, baseUrl));

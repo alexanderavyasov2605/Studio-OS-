@@ -26,7 +26,8 @@ export async function beginTelegramLogin() {
   });
   const url = new URL(TELEGRAM_ISSUER + "/auth");
   for (const [key, value] of Object.entries({ client_id: config.clientId, redirect_uri: config.callback, response_type: "code", scope: "openid profile", state, nonce, code_challenge: Buffer.from(digestToken(verifier), "hex").toString("base64url"), code_challenge_method: "S256" })) url.searchParams.set(key, value);
-  return { url: url.href, browser };
+  // Telegram authorization expects RFC 3986 spaces, rather than form-encoded '+'.
+  return { url: url.href.replaceAll("+", "%20"), browser };
 }
 
 export async function finishTelegramLogin(state: string, browser: string, code: string) {

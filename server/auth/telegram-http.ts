@@ -18,7 +18,7 @@ export async function handleTelegramRequest(request: NextRequest, segments: stri
     if (request.method === "POST") checkOrigin(request);
     if (path === "telegram/start" && request.method === "POST") {
       const attempt = await beginTelegramLogin();
-      const response = redirect(attempt.url);
+      const response = request.headers.get("accept")?.includes("application/json") ? privateJson({ url: attempt.url }) : redirect(attempt.url);
       response.cookies.set(telegramCookieName(), attempt.browser, { ...sessionCookieOptions(), sameSite: "lax", maxAge: 300 });
       return response;
     }
@@ -52,7 +52,7 @@ export async function handleTelegramRequest(request: NextRequest, segments: stri
       return response;
     }
     const status = error instanceof AuthError ? error.status : 503;
-    if (path === "telegram/start" && status !== 403) return redirect(status === 429 ? "/login?error=throttled" : "/login?error=unavailable");
+    if (path === "telegram/start" && status !== 403 && !request.headers.get("accept")?.includes("application/json")) return redirect(status === 429 ? "/login?error=throttled" : "/login?error=unavailable");
     return privateJson({ error: error instanceof AuthError ? error.code : "UNAVAILABLE", message: "Не удалось выполнить запрос." }, status);
   }
 }

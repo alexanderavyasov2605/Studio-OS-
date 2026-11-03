@@ -31,6 +31,7 @@ globalThis.fetch = async (input, init) => {
 };
 async function challenge(id: number) {
   const attempt = await beginTelegramLogin();
+  assert.ok(attempt.url.includes("scope=openid%20profile"), "RFC 3986 scope encoding accepted by Telegram");
   const auth = new URL(attempt.url);
   assert.equal(auth.origin, TELEGRAM_ISSUER);
   assert.equal(auth.searchParams.get("code_challenge_method"), "S256");
