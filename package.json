@@ -24,7 +24,8 @@
     "admin:bootstrap": "prisma generate && tsx scripts/bootstrap-admin.ts",
     "auth:test": "tsx tests/auth.integration.ts",
     "catalog:test": "tsx tests/catalog.integration.ts",
-    "deploy:check": "tsx scripts/check-production.ts"
+    "deploy:check": "tsx scripts/check-production.ts",
+    "release:prepare": "node scripts/release.mjs"
   },
   "dependencies": {
     "next": "16.4.4",

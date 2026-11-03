@@ -17,7 +17,7 @@ Dockerfile устанавливает pnpm по закреплённой вер�
 Источник — alexanderavyasov2605/Studio-OS-, ветка release/production-review, корень репозитория. Dockerfile определяется автоматически; build/start берутся из него.
 
 В Settings задать:
-- Pre-deploy command: pnpm deploy:check && pnpm db:migrate && pnpm db:seed.
+- Pre-deploy command: pnpm release:prepare. Один Node-скрипт последовательно запускает preflight, migrate deploy и seed; shell-операторы в Docker command не используются.
 - Healthcheck Path: /api/health; Timeout: 120 секунд.
 - Restart policy: On Failure, ограниченное число повторов.
 - Public domain: HTTPS, target port 3000.
