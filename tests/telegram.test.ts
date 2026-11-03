@@ -13,6 +13,7 @@ function token(overrides = {}, header = {}) {
 describe("Telegram identity verification", () => {
   it("accepts only a signed Telegram numeric ID, independently of display name", () => {
     expect(verifyTelegramToken(token(), "123456", "fixture-nonce", [key], now).id).toBe("930826522");
+    expect(verifyTelegramToken(token({ id: "930826522" }), "123456", "fixture-nonce", [key], now).id).toBe("930826522");
     expect(verifyTelegramToken(token({ id: 42, name: "930826522" }), "123456", "fixture-nonce", [key], now).id).toBe("42");
   });
   it("rejects forged signatures, algorithms, unknown keys and malformed tokens", () => {
@@ -23,7 +24,7 @@ describe("Telegram identity verification", () => {
     }
   });
   it("rejects wrong issuer, audience, nonce, old/future/expired claims and unsafe IDs", () => {
-    for (const override of [{ iss: "https://evil.invalid" }, { aud: "wrong" }, { nonce: "other-browser" }, { exp: now }, { iat: now - 601 }, { iat: now + 31 }, { nbf: now + 100 }, { id: "930826522" }, { id: -1 }, { id: Number.MAX_SAFE_INTEGER + 1 }, { sub: "" }]) {
+    for (const override of [{ iss: "https://evil.invalid" }, { aud: "wrong" }, { nonce: "other-browser" }, { exp: now }, { iat: now - 601 }, { iat: now + 31 }, { nbf: now + 100 }, { id: "9e8" }, { id: "0930826522" }, { id: "9007199254740992" }, { id: "-1" }, { id: "1.5" }, { id: true }, { id: null }, { id: -1 }, { id: Number.MAX_SAFE_INTEGER + 1 }, { sub: "" }]) {
       expect(() => verifyTelegramToken(token(override), "123456", "fixture-nonce", [key], now)).toThrow();
     }
   });

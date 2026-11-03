@@ -50,12 +50,16 @@ export function verifyTelegramToken(token: string, clientId: string, nonce: stri
   if (claims.aud !== clientId) throw new TelegramVerificationError("audience");
   if (claims.nonce !== nonce) throw new TelegramVerificationError(claims.nonce === undefined ? "nonce_missing" : "nonce_mismatch");
   if (claims.id === undefined) throw new TelegramVerificationError("id_missing");
-  if (typeof claims.id !== "number") throw new TelegramVerificationError("id_type");
+  // Telegram returns decimal IDs as strings in live OIDC responses as well as numbers.
+  // Normalize only after signature verification; never coerce arbitrary JSON values.
+  const id = typeof claims.id === "number" && Number.isSafeInteger(claims.id) && claims.id > 0 ? String(claims.id) :
+    typeof claims.id === "string" && /^[1-9]\d{0,15}$/.test(claims.id) && BigInt(claims.id) <= BigInt(Number.MAX_SAFE_INTEGER) ? claims.id : null;
+  if (!id) throw new TelegramVerificationError("id_type");
   if (
       typeof claims.exp !== "number" || claims.exp <= now || typeof claims.iat !== "number" || claims.iat > now + 30 || claims.iat < now - 600 || claims.exp <= claims.iat ||
       (claims.nbf !== undefined && (typeof claims.nbf !== "number" || claims.nbf > now + 30)) ||
-      typeof claims.sub !== "string" || !claims.sub || !Number.isSafeInteger(claims.id) || claims.id <= 0) throw new Error("Invalid claims");
-  return { id: String(claims.id), name: typeof claims.name === "string" ? claims.name.slice(0, 200) : "Пользователь Telegram", username: typeof claims.preferred_username === "string" && /^[a-zA-Z0-9_]{1,64}$/.test(claims.preferred_username) ? claims.preferred_username : null };
+      typeof claims.sub !== "string" || !claims.sub) throw new Error("Invalid claims");
+  return { id, name: typeof claims.name === "string" ? claims.name.slice(0, 200) : "Пользователь Telegram", username: typeof claims.preferred_username === "string" && /^[a-zA-Z0-9_]{1,64}$/.test(claims.preferred_username) ? claims.preferred_username : null };
 }
 
 export async function verifiedTelegramIdentity(token: string, clientId: string, nonce: string) {

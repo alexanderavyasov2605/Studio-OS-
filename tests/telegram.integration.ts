@@ -25,7 +25,7 @@ globalThis.fetch = async (input, init) => {
   assert.ok(record); codes.delete(body.get("code")!);
   assert.equal(body.get("code_verifier"), record.verifier);
   const now = Math.floor(Date.now() / 1000);
-  const parts = [{ alg: "RS256", kid: "fixture" }, { iss: TELEGRAM_ISSUER, aud: "123456", sub: randomUUID(), id: record.id, name: "Synthetic Telegram user", nonce: record.nonce, iat: now, exp: now + 300 }].map(value => Buffer.from(JSON.stringify(value)).toString("base64url"));
+  const parts = [{ alg: "RS256", kid: "fixture" }, { iss: TELEGRAM_ISSUER, aud: "123456", sub: randomUUID(), id: String(record.id), name: "Synthetic Telegram user", nonce: record.nonce, iat: now, exp: now + 300 }].map(value => Buffer.from(JSON.stringify(value)).toString("base64url"));
   const token = parts.join(".") + "." + sign("RSA-SHA256", Buffer.from(parts.join(".")), privateKey).toString("base64url");
   return Response.json({ id_token: token });
 };
