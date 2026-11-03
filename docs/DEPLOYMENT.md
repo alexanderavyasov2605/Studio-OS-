@@ -13,6 +13,8 @@ Dockerfile устанавливает pnpm по закреплённой вер�
 
 Достаточно одной реплики в Amsterdam рядом с Supabase Ireland. Приложение использует не более пяти соединений на процесс, с ограничениями ожидания подключения/запроса. Пароли bootstrap не хранить в постоянных переменных сервиса.
 
+Runtime доверяет публичному Supabase CA из prisma/certs/supabase-root-2021.crt через NODE_EXTRA_CA_CERTS. Сертификат загружен по ссылке Download certificate в Database Settings Supabase; это публичный CA, не закрытый ключ. Проверка сертификата/имени сервера сохраняется, rejectUnauthorized=false и NODE_TLS_REJECT_UNAUTHORIZED=0 не применяются. При смене CA обновить файл из панели поставщика и образ.
+
 ## Настройки Railway
 Источник — alexanderavyasov2605/Studio-OS-, ветка release/production-review, корень репозитория. Dockerfile определяется автоматически; build/start берутся из него.
 

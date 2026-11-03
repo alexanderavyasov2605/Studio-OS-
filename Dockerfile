@@ -12,6 +12,7 @@ RUN pnpm build
 
 FROM base AS runtime
 ENV NODE_ENV=production HOSTNAME=0.0.0.0 PORT=3000
+ENV NODE_EXTRA_CA_CERTS=/app/prisma/certs/supabase-root-2021.crt
 # Keep Prisma CLI/tsx in this MVP image for release migrations and one-time setup.
 COPY --from=build --chown=node:node /app/node_modules ./node_modules
 COPY --from=build --chown=node:node /app/.next-auth ./.next-auth
