@@ -1,6 +1,6 @@
 # Studio OS
 
-Подготовка текущей версии к Railway/Supabase: [DEPLOYMENT](docs/DEPLOYMENT.md). Используется release/production-review, без merge в main. Docker-сборка не требует секретов; перед запуском применяются миграции и повторяемый seed.
+Версия для просмотра: [каталог Studio OS](https://studio-os-production-edbe.up.railway.app/catalog). Размещение Railway/Supabase: [DEPLOYMENT](docs/DEPLOYMENT.md). Используется release/production-review, без merge в main. Docker-сборка не требует секретов; перед запуском применяются миграции и повторяемый seed.
 
 Studio OS: Next.js App Router, TypeScript strict, Tailwind CSS, PostgreSQL/Prisma и pnpm. Реализованы дизайн-система, база данных, защищённый вход сотрудников и рабочий каталог. Остальные бизнес-разделы пока — заглушки.
 
@@ -97,3 +97,4 @@ Seed создаёт только A4/A3 и три недоступных демо
 После pnpm db:migrate и pnpm db:seed доступны пять начальных изделий на /catalog, поиск, категории и /catalog/[slug]. Seed повторяем и сохраняет изменения администратора; материалы помечены «под заказ», начальные изображения — иллюстрации.
 Управление: /admin/catalog. ADMIN может создавать и редактировать товары; OPERATOR требует catalog:write для записи. Изображения задаются HTTPS-ссылками с подписями. Изменения появляются на сайте без сборки.
 Режимы AUTO_SHEET/MANUAL_REQUEST заданы явно; калькулятор, приём заявок и e-commerce пока не подключены. Инструкции и проверки: [CATALOG](docs/CATALOG.md).
+
